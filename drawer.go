@@ -1,7 +1,6 @@
 package text2img
 
 import (
-	// "errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -11,6 +10,7 @@ import (
 	"io/ioutil"
 	"math"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -132,50 +132,88 @@ func choose(ss []string, test func(string) bool) (ret []string) {
     return
 }
 
-func WordsLongerThan3Letters(str string) ([]string) {
+func WordsLongerThan2LettersIn(str string) ([]string) {
 	words := strings.Split(str, " ")
 	//ignore 1 and 2 letter words
-	func_words_with_more_than_2_letters := func(s string) bool { return len(s) > 2 }
+	func_words_with_more_than_2_letters := func(str string) bool { return len(str) > 2 }
 	words_with_more_than_2_letters := choose(words, func_words_with_more_than_2_letters)	
 
 	return words_with_more_than_2_letters
 }
 
+func nonEmptyStringChooser(str string) bool {
+	return len(str) > 0
+}
+
 func Words(str string) ([]string) {
 	words := strings.Split(str, " ")
+	return choose(words, nonEmptyStringChooser)
+}
 
-	return words
+func Lines(str string) ([]string) {
+	lines := make([]string, 0)
+	for _, line := range strings.Split(str, "\n") {
+		line = strings.Trim(line, " \t\n\r")
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return choose(lines, nonEmptyStringChooser)
+}
+
+func Sentences(str string) ([] string) {
+	sentences := make([]string, 0)
+	for _, sentence := range strings.Split(str, ". ") {
+		sentence = strings.Trim(sentence, " \t\n\r")
+		if sentence != "" {
+			sentences = append(sentences, sentence)
+		}
+	}
+	return choose(sentences, nonEmptyStringChooser)
+}
+
+func Phrases(str string) ([] string) {
+	phrases := make([]string, 0)
+	for _, phrase := range strings.Split(str, ",") {
+		// phrase = strings.Trim(phrase, " \t\n\r")
+		if strings.Trim(phrase, " \t\n\r") != "" {
+			phrases = append(phrases, phrase)
+		}
+	}
+	return choose(phrases, nonEmptyStringChooser)
+}
+
+func LastChar(str string) (string) {
+	characters := strings.Split(str, "")
+	return characters[len(characters) - 1]
+}
+
+func TerminateLineWithDotSpace(str string) (string) {
+	if LastChar(str) != "." {
+		str = str + ". "
+	} else {
+		str = str + " "
+	}
+
+	return str
 }
 
 func (d *drawer) Snippets(text string) ([][]string) {
-	// chunks := strings.Split(text + " ", ". ")
-	// return chunks
-	//TODO: Convert into enum
+	codeSnippetStart := "{{{{{{"
+	codeSnippetEnd := "}}}}}}"
+	textSnippetStart := "[[[[[["
+	textSnippetEnd := "]]]]]]"
 
 	snippets := make([][]string, 0)
 
-	lines := strings.Split(text, "\n")
+	lines := Lines(text)
 
 	accumulateCodeSnippet := false
 	accumulateTextSnippet := false
 	codeSnippet := make([]string, 0)
 	textSnippet := make([]string, 0)
 
-	codeSnippetStart := "{{{{{{"
-	codeSnippetEnd := "}}}}}}"
-	textSnippetStart := "[[[[[["
-	textSnippetEnd := "]]]]]]"
-	if d.NotesSource == "liner" {
-		textSnippetStart = "___"
-		textSnippetEnd = "___"		
-	}
-
 	for _, line := range lines {
-		line = strings.Trim(line, " \t\n\r")
-		if line == "" {
-			continue
-		}
-
 		if line == codeSnippetStart {
 			accumulateCodeSnippet = true
 			continue
@@ -188,20 +226,13 @@ func (d *drawer) Snippets(text string) ([][]string) {
 			continue
 		}
 
+		//This should be after the `codeSnippetEnd` check!
 		if accumulateCodeSnippet {
 			codeSnippet = append(codeSnippet, line)
 			continue
 		}
 
 		if line == textSnippetStart {
-			if d.NotesSource == "liner" {
-				if accumulateTextSnippet == true {
-					//Handle Text Snippet End here itself!
-					accumulateTextSnippet = false
-					snippets = append(snippets, textSnippet)
-					textSnippet = make([]string, 0)
-				}
-			}
 			accumulateTextSnippet = true
 			continue
 		}
@@ -213,138 +244,162 @@ func (d *drawer) Snippets(text string) ([][]string) {
 			continue
 		}
 
+		// //This should be after the `textSnippetEnd` check!
+		// if accumulateTextSnippet {
+		// 	textSnippet = append(textSnippet, line)
+		// 	continue
+		// }
+
 		//The line we are scanning is either part of "Text Snippet Accumulation", or "Single Line Text"
 
-		if line[len(line) - 1] != '.' {
-			line = line + ". "
-		} else {
-			line = line + " "
-		}
+		line = TerminateLineWithDotSpace(line)
 
-		sentences := strings.Split(line, ". ")
+		sentences := Sentences(line)
 		for _, sentence := range sentences {
-			if sentence == "" {
-				continue
-			}
 			sentence = sentence + "."
 
-			// words := strings.Split(sentence, " ")
-			// //ignore 1 and 2 letter words
-			// func_words_with_more_than_2_letters := func(s string) bool { return len(s) > 2 }
-			words_with_more_than_2_letters := WordsLongerThan3Letters(sentence)
-			if (len(words_with_more_than_2_letters) > 12) {
-				//split this sentence further. Try splitting by commas
-				phrases := strings.Split(sentence, ",")
+			// Should we be splitting this sentence up?
+			if (len(WordsLongerThan2LettersIn(sentence)) > 10) {
+				fmt.Printf("SPLITTING sentence <<%s>> as it is larger than 10 words.\n", sentence)
+				// Split this sentence further. Try splitting by commas. [TODO - semi-colons]
+				phrases := Phrases(sentence)
 				for index, phrase := range phrases {
-					if phrase == "" {
-						continue
-					}
-					if index == len(phrases) - 1 && sentence[len(sentence) - 1] == ',' {
+					if index != len(phrases) - 1 || LastChar(sentence) == "," {
 						phrase = phrase + ","
 					}
 
-					words := Words(phrase)
-					words_with_more_than_2_letters := WordsLongerThan3Letters(phrase)
-					// words = strings.Split(phrase, " ")
-					// words_with_more_than_2_letters := choose(words, func_words_with_more_than_2_letters)
-					if (len(words_with_more_than_2_letters) > 12) {
-						phraseParts := 2;
-						for len(words) / phraseParts > 12 {
-							phraseParts = phraseParts + 1
-						}
-						wordsInOnePhrasePart := len(words) / phraseParts
-						for len(words) > 0 {
-							upperBoundIndex := wordsInOnePhrasePart
-							if wordsInOnePhrasePart > len(words) {
-								upperBoundIndex = len(words)
+					// The first phrase of a new sentence, even if it is small, should not be considered for clubbing with the previous sentence.
+					isFirstPhraseOfThisSentence := index == 0
+
+					// Should we be splitting this phrase up?
+					if (len(WordsLongerThan2LettersIn(phrase)) > 10) {
+						fmt.Printf("SPLITTING phrase <<%s>> as it is larger than 10 words.\n", phrase)
+						phraseParts := minimumPhrasePartsForWordsPerPhrasePartLessThan(phrase, 10)
+						wordsInPhrase := Words(phrase)
+						wordsPerPhrasePart := len(wordsInPhrase) / phraseParts
+
+						// The first phrase part of a phrase, even if it is small, should not be considered for clubbing with the previous sentence.
+						isFirstPhrasePartOfThisPhrase := true
+
+						for len(wordsInPhrase) > 0 {
+							upperBoundIndex := wordsPerPhrasePart
+							if wordsPerPhrasePart > len(wordsInPhrase) {
+								upperBoundIndex = len(wordsInPhrase)
 							}
-							phrasePart := strings.Join(words[0 : upperBoundIndex], " ")
+							phrasePart := strings.Join(wordsInPhrase[0 : upperBoundIndex], " ")
 
-							textSnippet = append(textSnippet, phrasePart)
+							isFirstPhrasePartOfThisSentence := isFirstPhraseOfThisSentence && isFirstPhrasePartOfThisPhrase
+							if !isFirstPhrasePartOfThisSentence && ShouldClubWithPreviousText(textSnippet, phrasePart) {
+								fmt.Printf("CLUBBING phrase part <<%s>> with previous text.\n", phrasePart)
+								ClubWithPreviousText(textSnippet, phrasePart, " ")
+							} else {
+								fmt.Printf("DID NOT CLUB phrase part <<%s>> with previous text.\n", phrasePart)
+								textSnippet = append(textSnippet, phrasePart)
+							}
 
-							words = words[upperBoundIndex:]
+							wordsInPhrase = wordsInPhrase[upperBoundIndex:]
+							isFirstPhrasePartOfThisPhrase = false
 						}
 					} else {
-						if len(textSnippet) > 0 && (len(WordsLongerThan3Letters(textSnippet[len(textSnippet) - 1])) + len(WordsLongerThan3Letters(phrase))) <=13 {
-							textSnippet[len(textSnippet) - 1] = textSnippet[len(textSnippet) - 1] + ", " + phrase
+						if !isFirstPhraseOfThisSentence && ShouldClubWithPreviousText(textSnippet, phrase) {
+							fmt.Printf("CLUBBING phrase <<%s>> with previous text.\n", phrase)
+							ClubWithPreviousText(textSnippet, phrase, "")
 						} else {
+							fmt.Printf("DID NOT CLUB phrase <<%s>> with previous text.\n", phrase)
 							textSnippet = append(textSnippet, phrase)
 						}
 					}
 				}
 			} else {
-				if len(textSnippet) > 0 && (len(WordsLongerThan3Letters(textSnippet[len(textSnippet) - 1])) + len(WordsLongerThan3Letters(sentence))) <=13 {
-					textSnippet[len(textSnippet) - 1] = textSnippet[len(textSnippet) - 1] + " " + sentence
-				} else {
-					textSnippet = append(textSnippet, sentence)
-				}
+				// Skip the "Club with previous sentence" optimization for sentences. Do it only for phrases, as above!
+				textSnippet = append(textSnippet, sentence)
+				// if len(textSnippet) > 0 && (len(WordsLongerThan2Letters(textSnippet[len(textSnippet) - 1])) + len(WordsLongerThan2Letters(sentence))) <= 13 {
+				// if ShouldClubWithPreviousText(textSnippet, sentence) {
+				// 	ClubWithPreviousText(textSnippet, sentence, " ")
+				// } else {
+				// 	textSnippet = append(textSnippet, sentence.Trim(" \t\n\r"))
+				// }
 			}
 		}
 
+		// If we are in the context of processing "Single Line Text".
+		// Processing of "Text Snippet Accumulation" is being handled in `textSnippetEnd` check above.
 		if accumulateTextSnippet == false {
 			snippets = append(snippets, textSnippet)
 			textSnippet = make([]string, 0)
 		}
-		
-		// //Odd chunk!
-		// if index % 2 == 1 {
-		// 	chunkLines = strings.Split(chunk, "\n")
-		// }
 	}
 
-	for _, snippet := range snippets {
-		for _, line := range snippet {
-			fmt.Printf("Snippet Line: %s\n", line)
-		}
-	}
-
+	PrintSnippets(snippets)
 	return snippets
+}
+
+func ClubWithPreviousText(snippet []string, text string, separator string) {
+	// text = strings.Trim(text, " \t\n\r")
+	snippet[len(snippet) - 1] = snippet[len(snippet) - 1] + separator + text
+}
+
+func ShouldClubWithPreviousText(snippet []string, text string) (bool) {
+	if len(snippet) == 0 {
+		return false
+	}
+
+	previousText := snippet[len(snippet) - 1]
+
+	return len(WordsLongerThan2LettersIn(previousText)) + len(WordsLongerThan2LettersIn(text)) < 8
+}
+
+func minimumPhrasePartsForWordsPerPhrasePartLessThan(phrase string, maximumWordsPerPhrasePart int) (int) {
+	wordsInPhrase := Words(phrase)
+	minimumPhraseParts := 2;
+	for len(wordsInPhrase) / minimumPhraseParts > maximumWordsPerPhrasePart {
+		minimumPhraseParts = minimumPhraseParts + 1
+	}
+
+	return minimumPhraseParts
+}
+
+func PrintSnippets(snippets [][]string) {
+	for _, snippet := range snippets {
+		fmt.Println("Snippet")
+		for _, line := range snippet {
+			fmt.Printf("Line: %s\n", line)
+		}
+		fmt.Println("")
+	}
+}
+
+func IsPlaceHolderImageCommand(snippet []string) (bool) {
+	return len(snippet) > 0 && strings.HasPrefix(snippet[0], "PLACEHOLDER_IMAGE ")
 }
 
 // Draw returns the image of a text
 func (d *drawer) Draw(text string) {
-
 	snippets := d.Snippets(text)
 
-	// if d.autoFontSize {
-	// 	d.FontSize = 10000
-	// 	for _, snippet := range snippets {
-	// 		for _, line := range snippet {
-	// 			d.FontSize = math.Min(d.FontSize, d.calcFontSize(line))
-	// 		}
-	// 	}
-	// }
-
 	for index, snippet := range snippets {
+		if len(snippet) == 0 {
+			continue
+		}
+
 		var bgColor, textColor color.RGBA
 
+		//set unique random color every time
 		d.SetColors(bgColor, textColor)
 		//let it use auto font size
 		d.SetFontSize(0)
 
-		strIndex := strconv.Itoa(index)
-
-		if len(snippet) > 0 && strings.HasPrefix(snippet[0], "PLACEHOLDER_IMAGE ") {
-			placeholderFilename := strings.Replace(snippet[0], "PLACEHOLDER_IMAGE ", "", -1)
-			fmt.Printf("PLACEHOLDER FILE NAME = %s\n", placeholderFilename)
-			os.Rename(d.OutputFolder + "\\" + placeholderFilename, d.OutputFolder + "\\" + strIndex + ".jpg")
+		fileName := strconv.Itoa(index) + ".jpg"
+		if IsPlaceHolderImageCommand(snippet) {
+			d.bringInPlaceholderImageToItsRightPlace(snippet[0], fileName)
 		} else {
-			d.drawSnippet(snippet, d.OutputFolder + "\\" + strIndex + ".jpg")
+			d.drawSnippet(snippet, filepath.Join(d.OutputFolder, fileName))
 		}
 	}
 }
 
-func (d *drawer) drawSnippet(lines []string, output string) {
+func (d *drawer) drawBackgroundImage() (*image.RGBA) {
 	var img *image.RGBA
-	var err error
-
-	if d.autoFontSize {
-		d.FontSize = 10000
-		for _, line := range lines {
-			d.FontSize = math.Min(d.FontSize, d.calcFontSize(line))
-		}
-	}
-
 
 	if d.BackgroundImage != nil {
 		imgRect := image.Rectangle{image.Pt(0, 0), d.BackgroundImage.Bounds().Size()}
@@ -355,20 +410,32 @@ func (d *drawer) drawSnippet(lines []string, output string) {
 		draw.Draw(img, img.Bounds(), d.BackgroundColor, image.ZP, draw.Src)
 	}
 
-	// var lines [3]string
-	// lines[0] = "$ yarn global add create-react-app"
-	// lines[1] = "$ create-react-app react-hello"
-	// lines[2] = "$ rm src/App.* src/index.css src/logo.svg"
+	return img
+}
+
+func setContextProperties(c *freetype.Context, d *drawer, img *image.RGBA) {
+	c.SetDPI(72)
+	c.SetFont(d.Font)
+	c.SetFontSize(d.FontSize)
+	c.SetClip(img.Bounds())
+	c.SetDst(img)
+	c.SetSrc(d.TextColor)
+	c.SetHinting(font.HintingNone)
+}
+
+func (d *drawer) drawSnippet(lines []string, output string) {
+	var err error
+
+	//Calculate the minimum font fize considering all the text lines in the snippet
+	if d.autoFontSize {
+		d.FontSize = d.calcFontSizeForMultipleLines(lines)
+	}
+
+	var img *image.RGBA = d.drawBackgroundImage()
 	
 	if d.Font != nil {
 		c := freetype.NewContext()
-		c.SetDPI(72)
-		c.SetFont(d.Font)
-		c.SetFontSize(d.FontSize)
-		c.SetClip(img.Bounds())
-		c.SetDst(img)
-		c.SetSrc(d.TextColor)
-		c.SetHinting(font.HintingNone)
+		setContextProperties(c, d, img)
 
 		gapFromLastLine := 0
 		textHeight := int(c.PointToFixed(d.FontSize) >> 6)
@@ -380,24 +447,19 @@ func (d *drawer) drawSnippet(lines []string, output string) {
 				continue
 			}
 			// line = line + "."
-			textWidth := d.calcTextWidth(d.FontSize, line)
 			// pt := freetype.Pt((d.Width-textWidth)/2+d.TextPosHorizontal, (d.Height+textHeight)/2+d.TextPosVertical + gapFromLastLine)
+
+			// Use the below one for center alignment of text
+			textWidth := d.calcTextWidth(d.FontSize, line)
 			pt := freetype.Pt((d.Width-textWidth)/2+d.TextPosHorizontal, startingHeightPoint + gapFromLastLine)
+
+			// Use the below one for left alignment of text
+			// pt := freetype.Pt(d.TextPosHorizontal, startingHeightPoint + gapFromLastLine)
+
 			gapFromLastLine += textHeight + 40
 			_, err = c.DrawString(line, pt)
 		}
-
-		//return
 	}
-	//err = errors.New("Font must be specified")
-	// point := fixed.Point26_6{640, 960}
-	// fd := &font.Drawer{
-	// 	Dst:  img,
-	// 	Src:  d.TextColor,
-	// 	Face: basicfont.Face7x13,
-	// 	Dot:  point,
-	// }
-	// fd.DrawString(text)
 
 	file, err := os.Create(output)
 	if err != nil {
@@ -465,10 +527,19 @@ func (d *drawer) SetFontSize(fontSize float64) {
 	d.autoFontSize = true
 }
 
+func (d *drawer) bringInPlaceholderImageToItsRightPlace(snippetLine string, fileName string) {
+	placeholderFilename := strings.Replace(snippetLine, "PLACEHOLDER_IMAGE ", "", -1)
+	fmt.Printf("PLACEHOLDER FILE NAME = %s\n", placeholderFilename)
+	os.Rename(filepath.Join(d.OutputFolder, placeholderFilename), filepath.Join(d.OutputFolder, fileName))
+}
+
 // SetFontPos sets the fontPos
 func (d *drawer) SetTextPos(textPosVertical, textPosHorizontal int) {
 	d.TextPosVertical = textPosVertical
 	d.TextPosHorizontal = textPosHorizontal
+	if d.TextPosHorizontal == 0 {
+		d.TextPosHorizontal = 10
+	}
 }
 
 // SetColors sets the size
@@ -493,7 +564,7 @@ func (d *drawer) SetOutputFolder(outputFolder string) {
 	d.OutputFolder = outputFolder
 }
 
-func (d *drawer) calcFontSize(text string) (fontSize float64) {
+func (d *drawer) calcFontSizeForSingleLine(text string) (fontSize float64) {
 	const padding = 4
 	fontSizes := []float64{128, 64, 48, 32, 24, 18, 16, 14, 12}
 	for _, fontSize = range fontSizes {
@@ -503,6 +574,14 @@ func (d *drawer) calcFontSize(text string) (fontSize float64) {
 		}
 	}
 	return
+}
+
+func (d *drawer) calcFontSizeForMultipleLines(lines []string) (float64) {
+	var minFontSize float64 = 10000
+	for _, line := range lines {
+		minFontSize = math.Min(minFontSize, d.calcFontSizeForSingleLine(line))
+	}
+	return minFontSize
 }
 
 func (d *drawer) calcTextWidth(fontSize float64, text string) (textWidth int) {
