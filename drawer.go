@@ -163,9 +163,19 @@ func Lines(str string) ([]string) {
 
 func Sentences(str string) ([] string) {
 	sentences := make([]string, 0)
-	for _, sentence := range strings.Split(str, ". ") {
+	splitByDot := strings.Split(str, ". ")
+
+	for index, sentence := range splitByDot {
 		sentence = strings.Trim(sentence, " \t\n\r")
 		if sentence != "" {
+			if index < len(splitByDot) - 1 {
+				sentence = sentence + "."
+			} else {
+				strTrimmed = strings.Trim(str, " \t\n\r")
+				if strTrimmed[len(strTrimmed) - 1] == "." {
+					sentence = sentence + "."
+				}
+			}
 			sentences = append(sentences, sentence)
 		}
 	}
@@ -244,19 +254,13 @@ func (d *drawer) Snippets(text string) ([][]string) {
 			continue
 		}
 
-		// //This should be after the `textSnippetEnd` check!
-		// if accumulateTextSnippet {
-		// 	textSnippet = append(textSnippet, line)
-		// 	continue
-		// }
-
 		//The line we are scanning is either part of "Text Snippet Accumulation", or "Single Line Text"
 
 		line = TerminateLineWithDotSpace(line)
 
 		sentences := Sentences(line)
 		for _, sentence := range sentences {
-			sentence = sentence + "."
+			// sentence = sentence + "."
 
 			// Should we be splitting this sentence up?
 			if (len(WordsLongerThan2LettersIn(sentence)) > 10) {
