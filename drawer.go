@@ -172,7 +172,7 @@ func Sentences(str string) ([] string) {
 				sentence = sentence + "."
 			} else {
 				strTrimmed := strings.Trim(str, " \t\n\r")
-				if strTrimmed[len(strTrimmed) - 1] == "." {
+				if LastChar(strTrimmed) == "." {
 					sentence = sentence + "."
 				}
 			}
