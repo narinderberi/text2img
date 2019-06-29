@@ -199,9 +199,7 @@ func LastChar(str string) (string) {
 }
 
 func TerminateLineWithDotSpace(str string) (string) {
-	if LastChar(str) != "." {
-		str = str + ". "
-	} else {
+	if LastChar(str) == "." {
 		str = str + " "
 	}
 
