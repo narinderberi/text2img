@@ -171,7 +171,7 @@ func Sentences(str string) ([] string) {
 			if index < len(splitByDot) - 1 {
 				sentence = sentence + "."
 			} else {
-				strTrimmed = strings.Trim(str, " \t\n\r")
+				strTrimmed := strings.Trim(str, " \t\n\r")
 				if strTrimmed[len(strTrimmed) - 1] == "." {
 					sentence = sentence + "."
 				}
