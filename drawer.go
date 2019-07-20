@@ -375,9 +375,20 @@ func IsPlaceHolderImageCommand(snippet []string) (bool) {
 	return len(snippet) > 0 && strings.HasPrefix(snippet[0], "PLACEHOLDER_IMAGE ")
 }
 
+func LeftPad2Len(s string, padStr string, overallLen int) string {
+	var padCount = overallLen - len(s)
+	if padCount > 0 {
+		return strings.Repeat(padStr, padCount) + s
+	} else {
+		return s
+	}
+}
+
 // Draw returns the image of a text
 func (d *drawer) Draw(text string) {
 	snippets := d.Snippets(text)
+
+	overallLenForPadding := len(strconv.Itoa(len(snippets) - 1))
 
 	for index, snippet := range snippets {
 		if len(snippet) == 0 {
@@ -391,7 +402,7 @@ func (d *drawer) Draw(text string) {
 		//let it use auto font size
 		d.SetFontSize(0)
 
-		fileName := strconv.Itoa(index) + ".jpg"
+		fileName := LeftPad2Len(strconv.Itoa(index), "0", overallLenForPadding) + ".jpg"
 		if IsPlaceHolderImageCommand(snippet) {
 			d.bringInPlaceholderImageToItsRightPlace(snippet[0], fileName)
 		} else {
