@@ -163,6 +163,8 @@ func Lines(str string) ([]string) {
 
 func Sentences(str string) ([] string) {
 	sentences := make([]string, 0)
+	// Replace ... with ___ as a simple way to support vocabulary blank sentences.
+	str = strings.Replace(str, "...", "___", -1)
 	splitByDot := strings.Split(str, ". ")
 
 	for index, sentence := range splitByDot {
@@ -176,6 +178,8 @@ func Sentences(str string) ([] string) {
 					sentence = sentence + "."
 				}
 			}
+			// Restore the ... if any which were replaced by ___ above.
+			sentence = strings.Replace(sentence, "___", "...", -1)
 			sentences = append(sentences, sentence)
 		}
 	}
