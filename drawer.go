@@ -547,6 +547,9 @@ func (d *drawer) SetFontSize(fontSize float64) {
 func (d *drawer) bringInPlaceholderImageToItsRightPlace(snippetLine string, fileName string) {
 	placeholderFilename := strings.Replace(snippetLine, "PLACEHOLDER_IMAGE ", "", -1)
 	fmt.Printf("PLACEHOLDER FILE NAME = %s\n", placeholderFilename)
+	if strings.HasSuffix(placeholderFilename, ".png") {
+		fileName = strings.Replace(fileName, ".jpg", ".png", -1)
+	}
 	os.Rename(filepath.Join(d.OutputFolder, placeholderFilename), filepath.Join(d.OutputFolder, fileName))
 }
 
